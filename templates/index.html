@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GPIO Extractor — Board Schematic Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  :root {
+    --blue:#0078D4; --teal:#00B4D8; --green:#107C10; --orange:#F46800;
+    --dark:#0B0C10; --card:#13161C; --border:#2A2D36; --text:#F0F2F5; --muted:#8B92A0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Inter','Segoe UI',Arial,sans-serif;background:var(--dark);color:var(--text);min-height:100vh;padding:32px 24px;}
+
+  /* header */
+  .header{text-align:center;margin-bottom:32px;}
+  .badge{display:inline-block;background:linear-gradient(135deg,#0078D4,#00B4D8);border-radius:20px;padding:3px 14px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:#fff;margin-bottom:12px;}
+  .header h1{font-size:28px;font-weight:800;background:linear-gradient(135deg,#fff 30%,#60CDFF 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:6px;}
+  .header p{font-size:14px;color:var(--muted);}
+
+  /* upload card */
+  .upload-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:32px;max-width:680px;margin:0 auto 28px;}
+  .dropzone{border:2px dashed var(--border);border-radius:12px;padding:40px 24px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;position:relative;}
+  .dropzone:hover,.dropzone.dragover{border-color:var(--blue);background:rgba(0,120,212,.06);}
+  .dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+  .dz-icon{font-size:40px;margin-bottom:12px;}
+  .dz-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;}
+  .dz-sub{font-size:12px;color:var(--muted);}
+  .file-chosen{margin-top:10px;font-size:12px;color:var(--teal);font-weight:500;display:none;}
+
+  /* AI status */
+  .ai-status{display:flex;align-items:center;gap:8px;margin-bottom:20px;padding:10px 14px;border-radius:8px;font-size:12px;}
+  .ai-on {background:rgba(16,124,16,.15);border:1px solid rgba(16,124,16,.4);color:#86EFAC;}
+  .ai-off{background:rgba(244,104,0,.12);border:1px solid rgba(244,104,0,.4);color:#FCA572;}
+  .ai-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .dot-on{background:#4ADE80;} .dot-off{background:#F97316;}
+
+  /* button */
+  .btn-extract{width:100%;padding:13px;background:linear-gradient(135deg,#0078D4,#00B4D8);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .2s,transform .15s;margin-top:18px;}
+  .btn-extract:hover{opacity:.88;transform:translateY(-1px);}
+  .btn-extract:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+  /* progress */
+  .progress-wrap{display:none;margin-top:18px;}
+  .progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden;}
+  .progress-fill{height:100%;width:0;background:linear-gradient(90deg,#0078D4,#00B4D8);transition:width .4s;border-radius:4px;}
+  .progress-status{font-size:12px;color:var(--muted);margin-top:8px;text-align:center;}
+
+  /* results */
+  #results{display:none;max-width:1100px;margin:0 auto;}
+  .summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:16px;}
+  .mode-bar{background:#161B22;border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--muted);line-height:1.6;}
+  .mode-bar strong{color:#93C5FD;}
+  .mode-vision{border-color:rgba(244,104,0,.4);background:rgba(244,104,0,.06);}
+  .mode-vision strong{color:#FCA572;}
+  .ai-errors-box{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:#FCA5A5;}
+  .ai-errors-box strong{display:block;margin-bottom:6px;}
+  .s-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;}
+  .s-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0;}
+  .sc1::before{background:linear-gradient(90deg,#0078D4,#00B4D8);}
+  .sc2::before{background:linear-gradient(90deg,#107C10,#00B4D8);}
+  .sc3::before{background:linear-gradient(90deg,#F46800,#FFB900);}
+  .sc4::before{background:linear-gradient(90deg,#7C3AED,#0078D4);}
+  .s-num{font-size:28px;font-weight:800;color:#fff;line-height:1;}
+  .s-label{font-size:11px;color:var(--muted);margin-top:3px;}
+
+  /* filters */
+  .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+  .filter-bar input{flex:1;min-width:200px;background:#161B22;border:1px solid var(--border);border-radius:8px;padding:9px 14px;color:var(--text);font-size:13px;font-family:inherit;outline:none;}
+  .filter-bar input:focus{border-color:var(--blue);}
+  .filter-bar select{background:#161B22;border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:inherit;outline:none;cursor:pointer;}
+  .filter-bar select:focus{border-color:var(--blue);}
+  .btn-dl{padding:9px 18px;background:#107C10;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+  .btn-dl:hover{opacity:.85;}
+
+  /* table */
+  .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  .tbl-scroll{overflow-x:auto;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead tr{background:#161B22;}
+  thead th{padding:12px 14px;text-align:left;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--muted);white-space:nowrap;border-bottom:1px solid var(--border);}
+  tbody tr{border-bottom:1px solid #1E2330;transition:background .15s;}
+  tbody tr:hover{background:rgba(255,255,255,.03);}
+  tbody tr:last-child{border-bottom:none;}
+  td{padding:11px 14px;vertical-align:top;line-height:1.45;}
+  .td-gpio{font-family:'Courier New',monospace;font-weight:700;color:#93C5FD;font-size:12px;}
+  .td-net {font-family:'Courier New',monospace;color:#FCD34D;font-size:12px;}
+
+  /* direction badges */
+  .dir-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;font-family:inherit;}
+  .dir-input  {background:rgba(0,180,216,.15);border:1px solid #00B4D8;color:#67E8F9;}
+  .dir-output {background:rgba(16,124,16,.15);border:1px solid #107C10;color:#86EFAC;}
+  .dir-bidir  {background:rgba(244,104,0,.15);border:1px solid #F46800;color:#FCA572;}
+  .dir-unknown{background:rgba(139,146,160,.1);border:1px solid #4B5563;color:#9CA3AF;}
+
+  /* voltage badges */
+  .v-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;}
+  .v-1v8{background:rgba(124,58,237,.2);border:1px solid #7C3AED;color:#C4B5FD;}
+  .v-3v3{background:rgba(0,120,212,.2);border:1px solid #0078D4;color:#93C5FD;}
+  .v-unk{background:#1E2330;border:1px solid var(--border);color:var(--muted);}
+
+  /* no results */
+  .no-results{text-align:center;padding:40px 20px;color:var(--muted);}
+  .no-results .nr-icon{font-size:36px;margin-bottom:10px;}
+
+  /* error */
+  .error-box{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.4);border-radius:10px;padding:16px 20px;color:#FCA5A5;font-size:14px;max-width:680px;margin:0 auto;}
+
+  /* password modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;}
+  .modal-overlay.active{display:flex;}
+  .modal-box{background:#161B22;border:1px solid #3A3F4B;border-radius:14px;padding:32px 28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .modal-box h3{font-size:17px;font-weight:700;color:#E2E8F0;margin-bottom:6px;}
+  .modal-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+  .modal-icon{font-size:36px;margin-bottom:12px;text-align:center;}
+  .pw-input-wrap{position:relative;margin-bottom:16px;}
+  .pw-input-wrap input{width:100%;background:#0D1117;border:1px solid var(--border);border-radius:8px;padding:11px 44px 11px 14px;color:var(--text);font-size:14px;font-family:inherit;outline:none;}
+  .pw-input-wrap input:focus{border-color:var(--blue);}
+  .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0;}
+  .modal-btns{display:flex;gap:10px;}
+  .btn-pw-submit{flex:1;padding:10px;background:linear-gradient(135deg,#0078D4,#00B4D8);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .btn-pw-cancel{padding:10px 18px;background:#21262d;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;cursor:pointer;font-family:inherit;}
+  .pw-error{color:#F87171;font-size:12px;margin-bottom:12px;display:none;}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="badge">BIOS Auto-Generation PoC</div>
+  <h1>GPIO Extractor</h1>
+  <p>Upload an Intel board schematic PDF — get a full GPIO signal report instantly</p>
+</div>
+
+<div class="upload-card">
+  {% if use_ai %}
+  <div class="ai-status ai-on">
+    <div class="ai-dot dot-on"></div>
+    {% if use_azure %}
+    <strong>Azure OpenAI Active</strong>&nbsp;— GPT-4o deployment <code>{{ deployment }}</code> ready for intelligent GPIO extraction
+    {% else %}
+    <strong>Intel ExperGPT Active</strong>&nbsp;— GPT-4o ready for intelligent GPIO extraction
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="ai-status ai-off">
+    <div class="ai-dot dot-off"></div>
+    <strong>Regex Mode</strong>&nbsp;— No AI API key configured. Set <code>AZURE_OPENAI_KEY</code> + <code>AZURE_OPENAI_ENDPOINT</code> in <code>.env</code> to enable AI.
+  </div>
+  {% endif %}
+
+  <div class="dropzone" id="dropzone">
+    <input type="file" id="fileInput" accept=".pdf"/>
+    <div class="dz-icon">📄</div>
+    <div class="dz-title">Drop board schematic PDF here</div>
+    <div class="dz-sub">or click to browse — PDF files only, max 64 MB</div>
+  </div>
+  <div class="file-chosen" id="fileChosen"></div>
+
+  <button class="btn-extract" id="btnExtract" disabled>
+    &#9654;&nbsp; Extract GPIO Signals
+  </button>
+
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-status" id="progressStatus">Uploading PDF...</div>
+  </div>
+</div>
+
+<div id="errorBox" style="display:none" class="error-box"></div>
+
+<!-- PASSWORD MODAL -->
+<div class="modal-overlay" id="pwModal">
+  <div class="modal-box">
+    <div class="modal-icon">&#128274;</div>
+    <h3>Password Protected PDF</h3>
+    <p>This PDF is encrypted. Please enter the document password to proceed with GPIO extraction.</p>
+    <div class="pw-error" id="pwError">&#x26A0; Incorrect password. Please try again.</div>
+    <div class="pw-input-wrap">
+      <input type="password" id="pwInput" placeholder="Enter PDF password..." autocomplete="current-password"/>
+      <button class="pw-toggle" id="pwToggle" title="Show/hide password">&#128065;</button>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-pw-cancel" id="pwCancel">Cancel</button>
+      <button class="btn-pw-submit" id="pwSubmit">&#9654;&nbsp; Unlock &amp; Extract</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div id="results">
+  <div class="summary-grid">
+    <div class="s-card sc1"><div class="s-num" id="sumFile" style="font-size:16px;word-break:break-all;"></div><div class="s-label">Filename</div></div>
+    <div class="s-card sc2"><div class="s-num" id="sumGpios">0</div><div class="s-label">GPIOs Found</div></div>
+    <div class="s-card sc3"><div class="s-num" id="sumPages">0</div><div class="s-label">PDF Pages</div></div>
+    <div class="s-card sc4"><div class="s-num" id="sumMethod" style="font-size:12px;padding-top:6px;"></div><div class="s-label">Extraction Method</div></div>
+  </div>
+
+  <div class="filter-bar">
+    <input type="text" id="searchBox" placeholder="🔍  Search GPIO number, net name, function..."/>
+    <select id="dirFilter">
+      <option value="">All Directions</option>
+      <option value="Input">Input</option>
+      <option value="Output">Output</option>
+      <option value="Bidirectional">Bidirectional</option>
+      <option value="Unknown">Unknown</option>
+    </select>
+    <select id="voltFilter">
+      <option value="">All Voltages</option>
+      <option value="1.8V">1.8V</option>
+      <option value="3.3V">3.3V</option>
+      <option value="Unknown">Unknown</option>
+    </select>
+    <button class="btn-dl" id="btnDownload">&#8681; Download HTML Report</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="tbl-scroll">
+      <table id="gpioTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>GPIO / Pin</th>
+            <th>Net / Signal Name</th>
+            <th>Direction</th>
+            <th>Voltage</th>
+            <th>Function / Description</th>
+            <th>Connected To</th>
+            <th>Pull Config</th>
+          </tr>
+        </thead>
+        <tbody id="gpioBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="no-results" id="noResults" style="display:none">
+    <div class="nr-icon">🔍</div>
+    <div>No GPIOs match your filter</div>
+  </div>
+</div>
+
+<script>
+  let allGpios = [], metaData = {};
+  let pendingPassword = null;  // Stores password entered in modal
+
+  const fileInput   = document.getElementById('fileInput');
+  const dropzone    = document.getElementById('dropzone');
+  const fileChosen  = document.getElementById('fileChosen');
+  const btnExtract  = document.getElementById('btnExtract');
+  const progressWrap= document.getElementById('progressWrap');
+  const progressFill= document.getElementById('progressFill');
+  const progressStat= document.getElementById('progressStatus');
+  const errorBox    = document.getElementById('errorBox');
+  const results     = document.getElementById('results');
+  const pwModal     = document.getElementById('pwModal');
+  const pwInput     = document.getElementById('pwInput');
+  const pwError     = document.getElementById('pwError');
+
+  // ── File selection
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files[0]) {
+      fileChosen.textContent = '✓ ' + fileInput.files[0].name;
+      fileChosen.style.display = 'block';
+      btnExtract.disabled = false;
+      pendingPassword = null; // reset on new file
+    }
+  });
+
+  ['dragover','dragenter'].forEach(e => dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(e => dropzone.addEventListener(e, ev => { ev.preventDefault(); dropzone.classList.remove('dragover'); }));
+  dropzone.addEventListener('drop', ev => {
+    const file = ev.dataTransfer.files[0];
+    if (file && file.name.endsWith('.pdf')) {
+      const dt = new DataTransfer(); dt.items.add(file); fileInput.files = dt.files;
+      fileChosen.textContent = '✓ ' + file.name; fileChosen.style.display='block';
+      btnExtract.disabled = false;
+      pendingPassword = null;
+    }
+  });
+
+  // ── Password modal controls
+  document.getElementById('pwToggle').addEventListener('click', () => {
+    pwInput.type = pwInput.type === 'password' ? 'text' : 'password';
+  });
+  document.getElementById('pwCancel').addEventListener('click', () => {
+    pwModal.classList.remove('active');
+    btnExtract.disabled = false;
+    pwInput.value = '';
+    pwError.style.display = 'none';
+  });
+  document.getElementById('pwSubmit').addEventListener('click', () => {
+    const pw = pwInput.value.trim();
+    if (!pw) { pwError.textContent = '⚠ Please enter a password.'; pwError.style.display = 'block'; return; }
+    pwModal.classList.remove('active');
+    pwError.style.display = 'none';
+    pendingPassword = pw;
+    runExtract(pw);
+  });
+  pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('pwSubmit').click(); });
+
+  // ── Extract button — two-step: check password first, then extract
+  btnExtract.addEventListener('click', () => runExtractWithPasswordCheck());
+
+  async function runExtractWithPasswordCheck() {
+    errorBox.style.display = 'none';
+    results.style.display  = 'none';
+    btnExtract.disabled = true;
+
+    // If we already have a password (re-try), skip check
+    if (pendingPassword !== null) {
+      runExtract(pendingPassword);
+      return;
+    }
+
+    // Step 1: Upload file to /check-password to detect encryption
+    const fdCheck = new FormData();
+    fdCheck.append('schematic', fileInput.files[0]);
+    try {
+      const resp = await fetch('/check-password', { method: 'POST', body: fdCheck });
+      const data = await resp.json();
+      if (data.needs_password) {
+        // Show password modal
+        pwInput.value = '';
+        pwError.style.display = 'none';
+        pwModal.classList.add('active');
+        setTimeout(() => pwInput.focus(), 100);
+        btnExtract.disabled = false;
+        return;
+      }
+    } catch(e) {
+      // If check fails, proceed without password anyway
+    }
+
+    // Step 2: No password needed, proceed directly
+    runExtract('');
+  }
+
+  async function runExtract(password) {
+    errorBox.style.display = 'none';
+    results.style.display  = 'none';
+    progressWrap.style.display = 'block';
+    btnExtract.disabled = true;
+    animateProgress();
+
+    const fd = new FormData();
+    fd.append('schematic', fileInput.files[0]);
+    if (password) fd.append('pdf_password', password);
+
+    try {
+      const resp = await fetch('/extract', { method: 'POST', body: fd });
+      const data = await resp.json();
+      stopProgress();
+      if (data.error === 'password_required') {
+        // Shouldn't happen but handle gracefully
+        pwInput.value = ''; pwError.style.display = 'none';
+        pwModal.classList.add('active'); setTimeout(() => pwInput.focus(), 100);
+        btnExtract.disabled = false; return;
+      }
+      if (data.error === 'wrong_password') {
+        pwError.textContent = '⚠ ' + (data.message || 'Incorrect password.');
+        pwError.style.display = 'block';
+        pwInput.value = '';
+        pwModal.classList.add('active'); setTimeout(() => pwInput.focus(), 100);
+        pendingPassword = null;
+        btnExtract.disabled = false; return;
+      }
+      if (data.error) { showError(data.error); btnExtract.disabled = false; return; }
+      renderResults(data);
+    } catch(e) {
+      stopProgress();
+      showError('Network error: ' + e.message);
+    } finally {
+      btnExtract.disabled = false;
+    }
+  }
+
+  let progressInterval;
+  function animateProgress() {
+    let pct = 0;
+    const steps = ['Uploading PDF...','Extracting text from pages...','Analyzing GPIO signals...','Building report...'];
+    let si = 0;
+    progressFill.style.width = '5%';
+    progressInterval = setInterval(() => {
+      pct = Math.min(pct + (Math.random() * 8 + 2), 90);
+      progressFill.style.width = pct + '%';
+      if (pct > 30 && si < 1) { si=1; progressStat.textContent = steps[1]; }
+      if (pct > 55 && si < 2) { si=2; progressStat.textContent = steps[2]; }
+      if (pct > 78 && si < 3) { si=3; progressStat.textContent = steps[3]; }
+    }, 400);
+  }
+  function stopProgress() {
+    clearInterval(progressInterval);
+    progressFill.style.width = '100%';
+    setTimeout(() => { progressWrap.style.display='none'; progressFill.style.width='0'; }, 600);
+  }
+
+  function showError(msg) {
+    errorBox.textContent = '⚠ ' + msg;
+    errorBox.style.display = 'block';
+  }
+
+  // ── Render results
+  function renderResults(data) {
+    allGpios = data.gpios || [];
+    metaData = data;
+    document.getElementById('sumFile').textContent    = data.filename;
+    document.getElementById('sumGpios').textContent   = data.gpio_count;
+    document.getElementById('sumPages').textContent   = data.pages;
+    document.getElementById('sumMethod').textContent  = data.method;
+
+    // Mode bar
+    let modeBarEl = document.getElementById('modeBar');
+    if (!modeBarEl) {
+      modeBarEl = document.createElement('div');
+      modeBarEl.id = 'modeBar';
+      document.querySelector('.summary-grid').after(modeBarEl);
+    }
+    const isVision = (data.pdf_mode === 'image-based');
+    modeBarEl.className = 'mode-bar' + (isVision ? ' mode-vision' : '');
+    modeBarEl.innerHTML =
+      `<strong>PDF Type:</strong> ${data.pdf_mode || 'unknown'} &nbsp;|&nbsp; ` +
+      `<strong>Avg text/page:</strong> ${data.avg_chars_page} chars &nbsp;|&nbsp; ` +
+      `<strong>Extraction:</strong> ${data.method}`;
+
+    // AI errors
+    let errEl = document.getElementById('aiErrorsBox');
+    if (!errEl) {
+      errEl = document.createElement('div'); errEl.id = 'aiErrorsBox';
+      modeBarEl.after(errEl);
+    }
+    if (data.ai_errors && data.ai_errors.length) {
+      errEl.className = 'ai-errors-box';
+      errEl.innerHTML = '<strong>⚠ AI Extraction Warnings:</strong>' +
+        data.ai_errors.map(e => `<div>• ${e}</div>`).join('');
+      errEl.style.display = 'block';
+    } else {
+      errEl.style.display = 'none';
+    }
+
+    renderTable(allGpios);
+    results.style.display = 'block';
+    results.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function dirBadge(d) {
+    const map = {'Input':'dir-input','Output':'dir-output','Bidirectional':'dir-bidir'};
+    const cls = map[d] || 'dir-unknown';
+    return `<span class="dir-badge ${cls}">${d||'Unknown'}</span>`;
+  }
+  function voltBadge(v) {
+    if (!v || v==='Unknown') return `<span class="v-badge v-unk">Unknown</span>`;
+    if (v.includes('1.8')) return `<span class="v-badge v-1v8">${v}</span>`;
+    if (v.includes('3.3')) return `<span class="v-badge v-3v3">${v}</span>`;
+    return `<span class="v-badge v-unk">${v}</span>`;
+  }
+
+  function renderTable(gpios) {
+    const tbody = document.getElementById('gpioBody');
+    tbody.innerHTML = '';
+    if (!gpios.length) { document.getElementById('noResults').style.display='block'; return; }
+    document.getElementById('noResults').style.display='none';
+    gpios.forEach((g, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="color:var(--muted);font-size:11px;">${i+1}</td>
+        <td class="td-gpio">${g.gpio_num || ''}</td>
+        <td class="td-net">${g.net_name || ''}</td>
+        <td>${dirBadge(g.direction)}</td>
+        <td>${voltBadge(g.voltage)}</td>
+        <td style="color:#CBD5E1;font-size:12px;">${g.function || ''}</td>
+        <td style="color:var(--muted);font-size:12px;">${g.connected_to || ''}</td>
+        <td style="color:var(--muted);font-size:12px;">${g.pull || ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ── Filters
+  function applyFilters() {
+    const q   = document.getElementById('searchBox').value.toLowerCase();
+    const dir = document.getElementById('dirFilter').value;
+    const vol = document.getElementById('voltFilter').value;
+    const filtered = allGpios.filter(g => {
+      const txt = [g.gpio_num, g.net_name, g.function, g.connected_to].join(' ').toLowerCase();
+      return (!q || txt.includes(q))
+          && (!dir || g.direction === dir)
+          && (!vol || g.voltage   === vol);
+    });
+    renderTable(filtered);
+  }
+  document.getElementById('searchBox').addEventListener('input', applyFilters);
+  document.getElementById('dirFilter').addEventListener('change', applyFilters);
+  document.getElementById('voltFilter').addEventListener('change', applyFilters);
+
+  // ── Download HTML Report
+  document.getElementById('btnDownload').addEventListener('click', () => {
+    const rows = allGpios.map((g,i) => `
+      <tr>
+        <td>${i+1}</td><td><code>${g.gpio_num}</code></td><td><code>${g.net_name}</code></td>
+        <td>${g.direction}</td><td>${g.voltage}</td>
+        <td>${g.function}</td><td>${g.connected_to}</td><td>${g.pull}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>GPIO Report — ${metaData.filename}</title>
+<style>
+  body{font-family:Segoe UI,Arial,sans-serif;background:#f8fafc;color:#1e293b;padding:32px;}
+  h1{font-size:22px;color:#0078D4;margin-bottom:4px;}
+  .meta{font-size:13px;color:#64748b;margin-bottom:24px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08);border-radius:8px;overflow:hidden;}
+  thead tr{background:#0078D4;color:#fff;}
+  th{padding:11px 14px;text-align:left;font-size:11px;letter-spacing:.7px;text-transform:uppercase;}
+  td{padding:10px 14px;border-bottom:1px solid #e2e8f0;}
+  tr:hover td{background:#f1f5f9;}
+  code{background:#f1f5f9;padding:2px 6px;border-radius:4px;font-family:Courier New,monospace;font-size:12px;}
+  .footer{margin-top:20px;font-size:11px;color:#94a3b8;}
+</style>
+</head>
+<body>
+<h1>GPIO Signal Report</h1>
+<div class="meta">
+  File: <strong>${metaData.filename}</strong> &nbsp;|&nbsp;
+  Pages: <strong>${metaData.pages}</strong> &nbsp;|&nbsp;
+  GPIOs Found: <strong>${metaData.gpio_count}</strong> &nbsp;|&nbsp;
+  Method: <strong>${metaData.method}</strong> &nbsp;|&nbsp;
+  Generated: <strong>${new Date().toLocaleString()}</strong>
+</div>
+<table>
+<thead><tr><th>#</th><th>GPIO / Pin</th><th>Net / Signal</th><th>Direction</th><th>Voltage</th><th>Function</th><th>Connected To</th><th>Pull Config</th></tr></thead>
+<tbody>${rows}</tbody>
+</table>
+<div class="footer">Generated by GPIO Extractor — BIOS Auto-Generation PoC &nbsp;|&nbsp; Intel Platform Technology</div>
+</body></html>`;
+
+    const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'GPIO_Report_' + metaData.filename.replace('.pdf','') + '.html';
+    a.click(); URL.revokeObjectURL(url);
+  });
+</script>
+</body>
+</html>

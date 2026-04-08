@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Environment / secrets — NEVER commit these
+.env
+*.pem
+*.key
+proxy_url.txt
+
+# Debug / test scripts (not part of the app)
+test_*.py
+test_*.ps1
+detect_proxy.ps1
+fix_ssl*.ps1
+setup_private_endpoint.ps1
+set_private_ip.py
+
+# Uploads temp dir (created at runtime)
+uploads/
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# OS
+Thumbs.db
+.DS_Store
