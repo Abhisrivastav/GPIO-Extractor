@@ -27,6 +27,9 @@ set_private_ip.py
 # Uploads temp dir (created at runtime)
 uploads/
 
+# Helper scripts (not part of the app)
+push_to_github.bat
+
 # PyInstaller
 dist/
 build/
